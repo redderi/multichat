@@ -1,0 +1,21 @@
+[project]
+name = "multichat"
+version = "0.1.0"
+description = "multichat"
+readme = "README.md"
+authors = [
+    { name = "redderi", email = "vrudko22@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "netifaces>=0.11.0",
+    "pyside6>=6.9.1",
+    "rich>=14.1.0",
+]
+
+[project.scripts]
+multichat = "multichat:main"
+
+[build-system]
+requires = ["uv_build>=0.8.4,<0.9.0"]
+build-backend = "uv_build"
