@@ -46,7 +46,8 @@ def multicast_listener(sock, local_ip, callback=None):
                 console.print(msg)
             continue
 
-        if addr[0] in ignored_hosts:
+        # Игнорируем собственные и игнорируемые хосты
+        if addr[0] == local_ip or addr[0] in ignored_hosts:
             continue
 
         # PEER_DISCOVERY
@@ -66,8 +67,7 @@ def multicast_listener(sock, local_ip, callback=None):
         if message.startswith("LEAVE_GROUP:"):
             peer_ip = message.split(":", 1)[1].strip()
             if peer_ip == local_ip:
-                # Игнорируем собственный выход
-                continue
+                continue  # игнорируем собственный выход
             with peers_lock:
                 if peer_ip in active_multicast_peers:
                     active_multicast_peers.remove(peer_ip)
@@ -82,8 +82,6 @@ def multicast_listener(sock, local_ip, callback=None):
         else:
             console.print(f"[Multicast от {addr[0]}]: {message}")
 
-
-            
 
 def send_multicast(sock, message, callback=None):
     try:
