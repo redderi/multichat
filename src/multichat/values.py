@@ -19,7 +19,7 @@ broadcast_addr = None
 peers_lock = threading.Lock()
 
 BROADCAST_MODE = True
-MULTICAST_MODE = False
+MULTICAST_MODE = True
 
 options = {
     '/h' : 'вывести посказку',

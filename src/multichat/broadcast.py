@@ -38,7 +38,9 @@ def broadcast_listener(sock, local_ip):
 def send_broadcast(sock, message, broadcast_addr, callback=None):
     try:
         if sock.fileno() != -1:
+            print("send broadcast")
             sock.sendto(message.encode(), (broadcast_addr, BROADCAST_PORT))
+            print(message.encode())
             if callback:
                 callback(f"[green][Отправлено broadcast]: {message.split(':', 1)[0]} (Вы):[/green] {message.split(':', 1)[1]}")
             else:

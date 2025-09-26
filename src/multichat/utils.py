@@ -1,11 +1,13 @@
 import netifaces
 import time
 import socket
-from values import running, BROADCAST_PORT
+from multichat.values import BROADCAST_PORT
+from values import MULTICAST_GROUP, MULTICAST_PORT, running
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 from rich.console import Group
+from multicast import send_multicast
 
 console = Console()
 
@@ -26,20 +28,29 @@ def get_network_info():
         console.print(f"[bold red]Ошибка при получении сетевых параметров:[/bold red] {e}")
         return None, None, None
 
-def peer_discovery(broadcast_sock, broadcast_addr, local_ip):
+def peer_discovery(broadcast_sock, broadcast_addr, local_ip, window=None, multicast_sock=None):
     while running:
+        message = f"PEER_DISCOVERY:{local_ip}"
+
+        # Broadcast
         try:
             if broadcast_sock.fileno() != -1:
-                message = f"PEER_DISCOVERY:{local_ip}"
                 broadcast_sock.sendto(message.encode(), (broadcast_addr, BROADCAST_PORT))
-                #console.print(f"[green][Отправлено broadcast]:[/green] {message}")
-            else:
-                #console.print("[dim][DEBUG] Не отправлено PEER_DISCOVERY: broadcast_sock невалиден[/dim]")
-                break
+                print("tttt")
+                console.print(f"[green][Отправлено broadcast]:[/green] {message}")
         except Exception as e:
-            console.print(f"[bold red]Ошибка в peer_discovery:[/bold red] {e}")
-            break
+            console.print(f"[bold red]Ошибка при отправке broadcast:[/bold red] {e}")
+
+        # Multicast
+        try:
+            if window and window.in_multicast_group and multicast_sock:
+                send_multicast(multicast_sock, message)
+                console.print(f"[cyan][Отправлено multicast]:[/cyan] {message}")
+        except Exception as e:
+            console.print(f"[bold red]Ошибка при отправке multicast:[/bold red] {e}")
+
         time.sleep(2)
+
 
 def signal_handler(sig, frame):
     global running

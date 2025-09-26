@@ -3,15 +3,18 @@ import socket
 import threading
 import ipaddress
 from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtCore import QTimer
 from broadcast import broadcast_listener, send_broadcast
 from multichat.multicast import multicast_listener, send_multicast
 from utils import get_network_info, peer_discovery, signal_handler
 from values import BROADCAST_PORT, MULTICAST_GROUP, MULTICAST_PORT, running, peers_lock, ignored_hosts, active_multicast_peers, active_broadcast_peers, options, BROADCAST_MODE, MULTICAST_MODE
 from rich.console import Console
+from PySide6.QtWidgets import QListWidgetItem, QLabel
 
 console = Console()
 
 from ui_interface import Ui_MainWindow
+
 
 class MultichatWindow(QMainWindow):
     def __init__(self):
@@ -21,6 +24,11 @@ class MultichatWindow(QMainWindow):
         self.setup_signals()
         self.console = Console()
         self.running = True
+
+        # 🔹 Таймер для автообновления списка участников
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_peers_list)
+        self.timer.start(1000)  # обновлять раз в секунду
 
     def load_ui(self):
         self.ui = Ui_MainWindow()
@@ -64,7 +72,11 @@ class MultichatWindow(QMainWindow):
         self.threads = [
             threading.Thread(target=broadcast_listener, args=(self.broadcast_sock, self.local_ip), daemon=True),
             threading.Thread(target=multicast_listener, args=(self.multicast_sock, self.local_ip), daemon=True),
-            threading.Thread(target=peer_discovery, args=(self.broadcast_sock, self.broadcast_addr, self.local_ip), daemon=True)
+            threading.Thread(
+                target=peer_discovery,
+                args=(self.broadcast_sock, self.broadcast_addr, self.local_ip, self, self.multicast_sock),
+                daemon=True
+            )
         ]
         for thread in self.threads:
             thread.start()
@@ -97,7 +109,14 @@ class MultichatWindow(QMainWindow):
         self.ui.messageInput.clear()
 
         def display_message(text):
-            self.ui.chatDisplay.append(text.replace("[green]", "<font color='green'>").replace("[/green]", "</font>").replace("[dim]", "<font color='gray'>").replace("[/dim]", "</font>").replace("[bold red]", "<font color='red'>").replace("[/bold red]", "</font>"))
+            self.ui.chatDisplay.append(
+                text.replace("[green]", "<font color='green'>")
+                .replace("[/green]", "</font>")
+                .replace("[dim]", "<font color='gray'>")
+                .replace("[/dim]", "</font>")
+                .replace("[bold red]", "<font color='red'>")
+                .replace("[/bold red]", "</font>")
+            )
 
         if message == "/exit":
             self.running = False
@@ -113,7 +132,7 @@ class MultichatWindow(QMainWindow):
             else:
                 self.ui.chatDisplay.append("<font color='yellow'>Вы уже находитесь в broadcast-режиме</font>")
         elif message == "/m":
-            if not MULTICAST_MODE or (BROADCAST_MODE and MULTICAST_MODE): 
+            if not MULTICAST_MODE or (BROADCAST_MODE and MULTICAST_MODE):
                 BROADCAST_MODE = False
                 MULTICAST_MODE = True
                 self.ui.chatDisplay.append("<font color='yellow'>Переход в multicast-режим</font>")
@@ -174,12 +193,37 @@ class MultichatWindow(QMainWindow):
     def update_peers_list(self):
         self.ui.peersList.clear()
         with peers_lock:
-            for ip in active_broadcast_peers:
-                self.ui.peersList.addItem(f"Broadcast: {ip}")
-            for ip in active_multicast_peers:
-                self.ui.peersList.addItem(f"Multicast: {ip}")
-            for ip in ignored_hosts:
-                self.ui.peersList.addItem(f"Ignored: {ip}")
+            added = False
+
+            if active_broadcast_peers:
+                text = "Broadcast: " + ", ".join(sorted(active_broadcast_peers))
+                item = QListWidgetItem()
+                label = QLabel(text)
+                label.setWordWrap(True)  # Включаем перенос
+                self.ui.peersList.addItem(item)
+                self.ui.peersList.setItemWidget(item, label)
+                added = True
+
+            if active_multicast_peers:
+                text = "Multicast: " + ", ".join(sorted(active_multicast_peers))
+                item = QListWidgetItem()
+                label = QLabel(text)
+                label.setWordWrap(True)
+                self.ui.peersList.addItem(item)
+                self.ui.peersList.setItemWidget(item, label)
+                added = True
+
+            if ignored_hosts:
+                text = "Ignored: " + ", ".join(sorted(ignored_hosts))
+                item = QListWidgetItem()
+                label = QLabel(text)
+                label.setWordWrap(True)
+                self.ui.peersList.addItem(item)
+                self.ui.peersList.setItemWidget(item, label)
+                added = True
+
+            if not added:
+                self.ui.peersList.addItem("Нет активных пиров")
 
     def switch_to_broadcast(self):
         global BROADCAST_MODE, MULTICAST_MODE
@@ -192,7 +236,7 @@ class MultichatWindow(QMainWindow):
 
     def switch_to_multicast(self):
         global BROADCAST_MODE, MULTICAST_MODE
-        if not MULTICAST_MODE or (BROADCAST_MODE and MULTICAST_MODE):    
+        if not MULTICAST_MODE or (BROADCAST_MODE and MULTICAST_MODE):
             BROADCAST_MODE = False
             MULTICAST_MODE = True
             self.ui.chatDisplay.append("<font color='yellow'>Переход в multicast-режим</font>")
@@ -284,6 +328,7 @@ class MultichatWindow(QMainWindow):
             if thread.is_alive():
                 self.ui.chatDisplay.append(f"<font color='yellow'>Поток {thread.name} не завершился вовремя</font>")
         event.accept()
+
 
 def window_app():
     app = QApplication(sys.argv)

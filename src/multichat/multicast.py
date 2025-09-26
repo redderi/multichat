@@ -38,7 +38,7 @@ def multicast_listener(sock, local_ip):
                 console.print(f"[Multicast от {addr[0]}]: {message}")
 
         elif addr[0] == local_ip:
-            #console.print(f"[dim]Пропущено собственное multicast-сообщение от {addr[0]}[/dim]")
+            console.print(f"[dim]Пропущено собственное multicast-сообщение от {addr[0]}[/dim]")
             pass
 
     console.print("[dim]multicast завершён[/dim]")
@@ -46,7 +46,9 @@ def multicast_listener(sock, local_ip):
 def send_multicast(sock, message, callback=None):
     try:
         if sock.fileno() != -1:
+            print("tut multicast")
             sock.sendto(message.encode(), (MULTICAST_GROUP, MULTICAST_PORT))
+            print(message.encode())
             if message.split(":", 1)[0] != "LEAVE_GROUP":
                 if callback:
                     callback(f"[green][Отправлено multicast]: {message.split(':', 1)[0]} (Вы):[/green] {message.split(':', 1)[1]}")
