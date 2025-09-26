@@ -18,37 +18,49 @@ def multicast_listener(sock, local_ip):
                 console.print(f"[bold red]Ошибка в multicast_listener:[/bold red] {e}")
             break
 
-        if addr[0] not in ignored_hosts and addr[0] != local_ip:
+        try:
             message = data.decode(errors="ignore")
-            if message.startswith("LEAVE_GROUP:"):
-                peer_ip = message.split(":", 1)[1]
-                with peers_lock:
-                    if peer_ip in active_multicast_peers:
-                        active_multicast_peers.remove(peer_ip)
-                        console.print(f"[yellow]Участник {peer_ip} покинул multicast группу.[/yellow]")
-                continue 
+        except Exception as e:
+            console.print(f"[bold red]Не удалось декодировать сообщение от {addr[0]}: {e}[/bold red]")
+            continue
 
-            if message.startswith("PEER_DISCOVERY:"):
-                peer_ip = message.split(":", 1)[1]
+        # --- Отладка ---
+        console.print(f"[dim]Получено от {addr[0]}: {message}[/dim]")
+
+        # Игнорируем свои пакеты и игнорируемые хосты
+        if addr[0] in ignored_hosts:
+            continue
+
+        # Добавляем новый IP, если это PEER_DISCOVERY
+        if message.startswith("PEER_DISCOVERY:"):
+            peer_ip = message.split(":", 1)[1].strip()
+            if peer_ip != local_ip:
                 with peers_lock:
-                    if peer_ip not in active_multicast_peers and peer_ip != local_ip:
+                    if peer_ip not in active_multicast_peers:
                         active_multicast_peers.add(peer_ip)
-                        console.print(f"[green]Обнаружен участник через multicast: {peer_ip}[/green]")
-            else:
-                console.print(f"[Multicast от {addr[0]}]: {message}")
+                        console.print(f"[green]Обнаружен новый участник через multicast: {peer_ip}[/green]")
+            continue
 
-        elif addr[0] == local_ip:
-            console.print(f"[dim]Пропущено собственное multicast-сообщение от {addr[0]}[/dim]")
-            pass
+        # LEAVE_GROUP
+        if message.startswith("LEAVE_GROUP:"):
+            peer_ip = message.split(":", 1)[1].strip()
+            with peers_lock:
+                if peer_ip in active_multicast_peers:
+                    active_multicast_peers.remove(peer_ip)
+                    console.print(f"[yellow]Участник {peer_ip} покинул multicast группу.[/yellow]")
+            continue
 
-    console.print("[dim]multicast завершён[/dim]")
+        # Обычные сообщения
+        console.print(f"[cyan][Multicast от {addr[0]}]:[/cyan] {message}")
+
+    console.print("[dim]multicast_listener завершён[/dim]")
+
 
 def send_multicast(sock, message, callback=None):
     try:
         if sock.fileno() != -1:
-            print("tut multicast")
             sock.sendto(message.encode(), (MULTICAST_GROUP, MULTICAST_PORT))
-            print(message.encode())
+            print(f"{message.encode()} to {MULTICAST_GROUP} + {MULTICAST_PORT}")
             if message.split(":", 1)[0] != "LEAVE_GROUP":
                 if callback:
                     callback(f"[green][Отправлено multicast]: {message.split(':', 1)[0]} (Вы):[/green] {message.split(':', 1)[1]}")

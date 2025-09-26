@@ -32,22 +32,21 @@ def peer_discovery(broadcast_sock, broadcast_addr, local_ip, window=None, multic
     while running:
         message = f"PEER_DISCOVERY:{local_ip}"
 
-        # Broadcast
+        # --- Broadcast ---
         try:
             if broadcast_sock.fileno() != -1:
                 broadcast_sock.sendto(message.encode(), (broadcast_addr, BROADCAST_PORT))
-                print("tttt")
                 console.print(f"[green][Отправлено broadcast]:[/green] {message}")
         except Exception as e:
-            console.print(f"[bold red]Ошибка при отправке broadcast:[/bold red] {e}")
+            console.print(f"[bold red]Ошибка при отправке broadcast: {e}[/bold red]")
 
-        # Multicast
+        # --- Multicast ---
         try:
             if window and window.in_multicast_group and multicast_sock:
                 send_multicast(multicast_sock, message)
                 console.print(f"[cyan][Отправлено multicast]:[/cyan] {message}")
         except Exception as e:
-            console.print(f"[bold red]Ошибка при отправке multicast:[/bold red] {e}")
+            console.print(f"[bold red]Ошибка при отправке multicast: {e}[/bold red]")
 
         time.sleep(2)
 
