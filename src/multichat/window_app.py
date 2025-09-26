@@ -10,6 +10,7 @@ from utils import get_network_info, peer_discovery, signal_handler
 from values import BROADCAST_PORT, MULTICAST_GROUP, MULTICAST_PORT, running, peers_lock, ignored_hosts, active_multicast_peers, active_broadcast_peers, options, BROADCAST_MODE, MULTICAST_MODE
 from rich.console import Console
 from PySide6.QtWidgets import QListWidgetItem, QLabel
+from PySide6.QtCore import Signal
 
 console = Console()
 
@@ -17,6 +18,7 @@ from ui_interface import Ui_MainWindow
 
 
 class MultichatWindow(QMainWindow):
+    multicast_message_signal = Signal(str)
     def __init__(self):
         super().__init__()
         self.load_ui()
