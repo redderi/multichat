@@ -1,23 +1,20 @@
 from values import running, BROADCAST_PORT, BUFFER_SIZE, active_broadcast_peers, peers_lock, ignored_hosts
 import socket
 from rich.console import Console
-from rich.text import Text
-
-console = Console()
-
 import time
 
+console = Console()
 BROADCAST_TIMEOUT = 5  # секунд
-
 last_seen = {}  # IP -> время последнего сообщения
 
 def broadcast_listener(sock, local_ip, callback=None):
     sock.settimeout(1.0)
     while running:
         now = time.time()
-        # Чистим устаревших участников
+
+        # Чистим устаревших участников, игнорируя игнорируемые хосты
         with peers_lock:
-            to_remove = [ip for ip, t in last_seen.items() if now - t > BROADCAST_TIMEOUT]
+            to_remove = [ip for ip, t in last_seen.items() if now - t > BROADCAST_TIMEOUT and ip not in ignored_hosts]
             for ip in to_remove:
                 last_seen.pop(ip)
                 if ip in active_broadcast_peers:
@@ -39,21 +36,26 @@ def broadcast_listener(sock, local_ip, callback=None):
                 console.print(msg)
             break
 
-        if addr[0] not in ignored_hosts and addr[0] != local_ip:
-            message = data.decode(errors="ignore")
-            if message.startswith("PEER_DISCOVERY:"):
-                peer_ip = message.split(":", 1)[1].strip()
-                last_seen[peer_ip] = now  # обновляем время последнего сообщения
-                with peers_lock:
-                    if peer_ip not in active_broadcast_peers and peer_ip != local_ip:
-                        active_broadcast_peers.add(peer_ip)
-                        if callback:
-                            callback(f"<font color='green'>Обнаружен broadcast участник: {peer_ip}</font>")
+        peer_ip = addr[0]
+
+        if peer_ip == local_ip or peer_ip in ignored_hosts:
+            continue
+
+        message = data.decode(errors="ignore")
+
+        if message.startswith("PEER_DISCOVERY:"):
+            peer_ip = message.split(":", 1)[1].strip()
+            last_seen[peer_ip] = now
+            with peers_lock:
+                if peer_ip not in active_broadcast_peers:
+                    active_broadcast_peers.add(peer_ip)
+                    if callback:
+                        callback(f"<font color='green'>Обнаружен broadcast участник: {peer_ip}</font>")
+        else:
+            if callback:
+                callback(f"<font color='cyan'>[Broadcast от {peer_ip}]: {message}</font>")
             else:
-                if callback:
-                    callback(f"<font color='cyan'>[Broadcast от {addr[0]}]: {message}</font>")
-                else:
-                    console.print(f"[Broadcast от {addr[0]}]: {message}")
+                console.print(f"[Broadcast от {peer_ip}]: {message}")
 
     if callback:
         callback("<font color='gray'>broadcast завершён</font>")
@@ -64,9 +66,7 @@ def broadcast_listener(sock, local_ip, callback=None):
 def send_broadcast(sock, message, broadcast_addr, callback=None):
     try:
         if sock.fileno() != -1:
-            print("send broadcast")
             sock.sendto(message.encode(), (broadcast_addr, BROADCAST_PORT))
-            print(message.encode())
             if callback:
                 callback(f"[green][Отправлено broadcast]: {message.split(':', 1)[0]} (Вы):[/green] {message.split(':', 1)[1]}")
             else:
@@ -77,7 +77,7 @@ def send_broadcast(sock, message, broadcast_addr, callback=None):
             else:
                 console.print("[dim][DEBUG] Не отправлено broadcast: сокет закрыт[/dim]")
     except OSError as e:
-        error_msg = f"[bold red]Ошибка при отправке broadcast:[/bold red] {e}"
+        error_msg = f"<font color='red'>Ошибка при отправке broadcast: {e}</font>"
         if callback:
             callback(error_msg)
         else:
