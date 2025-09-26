@@ -1,12 +1,27 @@
+import time
 from values import running, MULTICAST_GROUP, MULTICAST_PORT, BUFFER_SIZE, ignored_hosts, active_multicast_peers, peers_lock
 import socket
 from rich.console import Console
 
 console = Console()
 
-def multicast_listener(sock, local_ip):
+MULTICAST_TIMEOUT = 5  # секунд
+last_seen_multicast = {}  # IP -> время последнего сообщения
+
+def multicast_listener(sock, local_ip, callback=None):
     sock.settimeout(1.0)
     while running:
+        now = time.time()
+        # Удаляем устаревших участников
+        with peers_lock:
+            to_remove = [ip for ip, t in last_seen_multicast.items() if now - t > MULTICAST_TIMEOUT]
+            for ip in to_remove:
+                last_seen_multicast.pop(ip)
+                if ip in active_multicast_peers:
+                    active_multicast_peers.remove(ip)
+                    if callback:
+                        callback(f"<font color='orange'>Multicast участник {ip} покинул группу (тайм-аут)</font>")
+
         try:
             data, addr = sock.recvfrom(BUFFER_SIZE)
         except socket.timeout:
@@ -14,31 +29,35 @@ def multicast_listener(sock, local_ip):
         except OSError:
             break
         except Exception as e:
-            if running:
-                console.print(f"[bold red]Ошибка в multicast_listener:[/bold red] {e}")
+            msg = f"<font color='red'>Ошибка в multicast_listener: {e}</font>"
+            if callback:
+                callback(msg)
+            else:
+                console.print(msg)
             break
 
         try:
             message = data.decode(errors="ignore")
         except Exception as e:
-            console.print(f"[bold red]Не удалось декодировать сообщение от {addr[0]}: {e}[/bold red]")
+            msg = f"<font color='red'>Не удалось декодировать сообщение от {addr[0]}: {e}</font>"
+            if callback:
+                callback(msg)
+            else:
+                console.print(msg)
             continue
 
-        # --- Отладка ---
-        console.print(f"[dim]Получено от {addr[0]}: {message}[/dim]")
-
-        # Игнорируем свои пакеты и игнорируемые хосты
-        if addr[0] in ignored_hosts:
+        if addr[0] in ignored_hosts or addr[0] == local_ip:
             continue
 
-        # Добавляем новый IP, если это PEER_DISCOVERY
+        # PEER_DISCOVERY
         if message.startswith("PEER_DISCOVERY:"):
             peer_ip = message.split(":", 1)[1].strip()
-            if peer_ip != local_ip:
-                with peers_lock:
-                    if peer_ip not in active_multicast_peers:
-                        active_multicast_peers.add(peer_ip)
-                        console.print(f"[green]Обнаружен новый участник через multicast: {peer_ip}[/green]")
+            last_seen_multicast[peer_ip] = now
+            with peers_lock:
+                if peer_ip not in active_multicast_peers:
+                    active_multicast_peers.add(peer_ip)
+                    if callback:
+                        callback(f"<font color='green'>Обнаружен новый участник через multicast: {peer_ip}</font>")
             continue
 
         # LEAVE_GROUP
@@ -47,13 +66,21 @@ def multicast_listener(sock, local_ip):
             with peers_lock:
                 if peer_ip in active_multicast_peers:
                     active_multicast_peers.remove(peer_ip)
-                    console.print(f"[yellow]Участник {peer_ip} покинул multicast группу.[/yellow]")
+                    last_seen_multicast.pop(peer_ip, None)
+                    if callback:
+                        callback(f"<font color='yellow'>Участник {peer_ip} покинул multicast группу.</font>")
             continue
 
         # Обычные сообщения
-        console.print(f"[cyan][Multicast от {addr[0]}]:[/cyan] {message}")
+        if callback:
+            callback(f"<font color='cyan'>[Multicast от {addr[0]}]: {message}</font>")
+        else:
+            console.print(f"[Multicast от {addr[0]}]: {message}")
 
-    console.print("[dim]multicast_listener завершён[/dim]")
+    if callback:
+        callback("<font color='gray'>multicast_listener завершён</font>")
+    else:
+        console.print("multicast_listener завершён")
 
 
 def send_multicast(sock, message, callback=None):

@@ -6,7 +6,7 @@ import sys
 import ipaddress
 
 from broadcast import broadcast_listener, send_broadcast
-from multichat.multicast import multicast_listener, send_multicast
+from multicast import multicast_listener, send_multicast
 from utils import get_network_info, peer_discovery, print_app_info, signal_handler
 from values import BROADCAST_PORT, MULTICAST_GROUP, MULTICAST_PORT,\
                    running, peers_lock, ignored_hosts, active_multicast_peers,\

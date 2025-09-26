@@ -1,7 +1,7 @@
 import netifaces
 import time
 import socket
-from multichat.values import BROADCAST_PORT
+from values import BROADCAST_PORT
 from values import MULTICAST_GROUP, MULTICAST_PORT, running
 from rich.console import Console
 from rich.panel import Panel

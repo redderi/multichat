@@ -5,7 +5,7 @@ import ipaddress
 from PySide6.QtWidgets import QApplication, QMainWindow
 from PySide6.QtCore import QTimer
 from broadcast import broadcast_listener, send_broadcast
-from multichat.multicast import multicast_listener, send_multicast
+from multicast import multicast_listener, send_multicast
 from utils import get_network_info, peer_discovery, signal_handler
 from values import BROADCAST_PORT, MULTICAST_GROUP, MULTICAST_PORT, running, peers_lock, ignored_hosts, active_multicast_peers, active_broadcast_peers, options, BROADCAST_MODE, MULTICAST_MODE
 from rich.console import Console
@@ -70,8 +70,16 @@ class MultichatWindow(QMainWindow):
             self.mreq = None
 
         self.threads = [
-            threading.Thread(target=broadcast_listener, args=(self.broadcast_sock, self.local_ip), daemon=True),
-            threading.Thread(target=multicast_listener, args=(self.multicast_sock, self.local_ip), daemon=True),
+            threading.Thread(
+                target=broadcast_listener,
+                args=(self.broadcast_sock, self.local_ip, self.ui.chatDisplay.append),
+                daemon=True
+            ),
+            threading.Thread(
+                target=multicast_listener,
+                args=(self.multicast_sock, self.local_ip, self.ui.chatDisplay.append),
+                daemon=True
+            ),
             threading.Thread(
                 target=peer_discovery,
                 args=(self.broadcast_sock, self.broadcast_addr, self.local_ip, self, self.multicast_sock),

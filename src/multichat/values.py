@@ -4,7 +4,7 @@ BROADCAST_PORT = 5002
 MULTICAST_PORT = 5003
 BUFFER_SIZE = 1024
 
-MULTICAST_GROUP = '224.0.0.1'
+MULTICAST_GROUP = "239.255.0.1"
 
 active_multicast_peers = set()
 active_broadcast_peers = set()
