@@ -42,7 +42,7 @@
 - Клонируйте репозиторий:
 
 ```bash
-git clone https://github.com/your-username/multichat.git
+git clone https://github.com/redderi/multichat.git
 cd multichat
 ```
 
